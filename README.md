@@ -69,6 +69,7 @@ Creates a fully configured VPC with a public subnet, internet gateway, and route
 =============================================
 ```
 ![001](screenshots/001.png)
+![005](screenshots/005.png)
 
 ---
 
@@ -104,6 +105,8 @@ Creates a new EC2 key pair and launches a free-tier Amazon Linux 2 instance tagg
 =============================================
 ```
 
+![003](screenshots/003.png)
+
 ---
 
 ### 3. `create_security_group.sh` — Create a Security Group
@@ -134,6 +137,9 @@ Creates a security group (`devops-sg`) with inbound rules for SSH (port 22) and 
   Tag         : Project=AutomationLab
 =============================================
 ```
+
+![002](screenshots/002.png)
+![006](screenshots/006.png)
 
 ---
 
@@ -166,6 +172,8 @@ Creates a uniquely named S3 bucket with versioning enabled, a security policy (H
   Uploaded    : s3://automation-lab-20240518123045-12345/welcome.txt
 =============================================
 ```
+![004](screenshots/004.png)
+![007](screenshots/007.png)
 
 ---
 
@@ -192,6 +200,7 @@ Safely removes all resources tagged `Project=AutomationLab` to avoid unwanted AW
 > **Always run this script after testing** to avoid unexpected AWS charges.
 
 ---
+![008](screenshots/008.png)
 
 ## Recommended Execution Order
 
