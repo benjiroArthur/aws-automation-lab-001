@@ -68,6 +68,7 @@ Creates a fully configured VPC with a public subnet, internet gateway, and route
   Config File  : vpc_config.env
 =============================================
 ```
+![001](screenshots/001.png)
 
 ---
 
