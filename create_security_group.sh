@@ -7,8 +7,8 @@
 set -euo pipefail
 
 # ----------------------------- Configuration ---------------------------------
-REGION="eu-north-1"
-SG_NAME="devops-t-model-sg"
+REGION="us-east-1"
+SG_NAME="devops-sg"
 SG_DESCRIPTION="Security group for AutomationLab - allows SSH and HTTP"
 TAG_KEY="Project"
 TAG_VALUE="AutomationLab"
@@ -23,20 +23,24 @@ error_exit() {
     exit 1
 }
 
-# ----------------------------- Get Default VPC ID ----------------------------
-log "Fetching default VPC ID ..."
+# ----------------------------- Get VPC ID ------------------------------------
+# Source VPC config if available (created by create_vpc.sh)
+if [ -f "vpc_config.env" ]; then
+    source vpc_config.env
+    log "Loaded VPC config from vpc_config.env. Using VPC: $VPC_ID"
+else
+    log "vpc_config.env not found. Falling back to default VPC ..."
+    VPC_ID=$(aws ec2 describe-vpcs \
+        --region "$REGION" \
+        --filters "Name=isDefault,Values=true" \
+        --query 'Vpcs[0].VpcId' \
+        --output text)
 
-VPC_ID=$(aws ec2 describe-vpcs \
-    --region "$REGION" \
-    --filters "Name=isDefault,Values=true" \
-    --query 'Vpcs[0].VpcId' \
-    --output text)
-
-if [ -z "$VPC_ID" ] || [ "$VPC_ID" == "None" ]; then
-    error_exit "No default VPC found in region $REGION."
+    if [ -z "$VPC_ID" ] || [ "$VPC_ID" == "None" ]; then
+        error_exit "No VPC found. Run create_vpc.sh first or ensure a default VPC exists."
+    fi
+    log "Using default VPC: $VPC_ID"
 fi
-
-log "Using VPC: $VPC_ID"
 
 # ----------------------------- Security Group Creation -----------------------
 log "Checking if security group '$SG_NAME' already exists ..."

@@ -5,12 +5,13 @@
 #   - EC2 key pairs
 #   - Security groups
 #   - S3 buckets
+#   - VPC
 # =============================================================================
 
 set -euo pipefail
 
 # ----------------------------- Configuration ---------------------------------
-REGION="eu-north-1"
+REGION="us-east-1"
 TAG_KEY="Project"
 TAG_VALUE="AutomationLab"
 KEY_NAME="automation-lab-key"
@@ -176,6 +177,71 @@ if objects:
         log "Bucket '$BUCKET' deleted."
     fi
 done
+
+# ----------------------------- Delete VPC Resources --------------------------
+log "Looking for AutomationLab VPC ..."
+
+VPC_ID=$(aws ec2 describe-vpcs \
+    --region "$REGION" \
+    --filters "Name=tag:$TAG_KEY,Values=$TAG_VALUE" \
+    --query 'Vpcs[0].VpcId' \
+    --output text 2>/dev/null)
+
+if [ -z "$VPC_ID" ] || [ "$VPC_ID" == "None" ]; then
+    log "No tagged VPC found. Skipping VPC cleanup."
+else
+    log "Found VPC: $VPC_ID — cleaning up components ..."
+
+    # Detach and delete Internet Gateways
+    IGW_IDS=$(aws ec2 describe-internet-gateways \
+        --region "$REGION" \
+        --filters "Name=attachment.vpc-id,Values=$VPC_ID" \
+        --query 'InternetGateways[*].InternetGatewayId' \
+        --output text)
+
+    for IGW_ID in $IGW_IDS; do
+        log "Detaching and deleting Internet Gateway: $IGW_ID ..."
+        aws ec2 detach-internet-gateway --region "$REGION" --internet-gateway-id "$IGW_ID" --vpc-id "$VPC_ID"
+        aws ec2 delete-internet-gateway --region "$REGION" --internet-gateway-id "$IGW_ID"
+    done
+
+    # Delete Subnets
+    SUBNET_IDS=$(aws ec2 describe-subnets \
+        --region "$REGION" \
+        --filters "Name=vpc-id,Values=$VPC_ID" \
+        --query 'Subnets[*].SubnetId' \
+        --output text)
+
+    for SUBNET_ID in $SUBNET_IDS; do
+        log "Deleting subnet: $SUBNET_ID ..."
+        aws ec2 delete-subnet --region "$REGION" --subnet-id "$SUBNET_ID"
+    done
+
+    # Delete non-main Route Tables
+    RT_IDS=$(aws ec2 describe-route-tables \
+        --region "$REGION" \
+        --filters "Name=vpc-id,Values=$VPC_ID" \
+                  "Name=tag:$TAG_KEY,Values=$TAG_VALUE" \
+        --query 'RouteTables[*].RouteTableId' \
+        --output text)
+
+    for RT_ID in $RT_IDS; do
+        log "Deleting route table: $RT_ID ..."
+        aws ec2 delete-route-table --region "$REGION" --route-table-id "$RT_ID" || \
+            log "Could not delete route table $RT_ID (may be the main table). Skipping."
+    done
+
+    # Delete the VPC
+    log "Deleting VPC: $VPC_ID ..."
+    aws ec2 delete-vpc --region "$REGION" --vpc-id "$VPC_ID"
+    log "VPC deleted."
+
+    # Remove local config file
+    if [ -f "vpc_config.env" ]; then
+        rm -f vpc_config.env
+        log "Removed vpc_config.env"
+    fi
+fi
 
 # ----------------------------- Summary ---------------------------------------
 echo ""

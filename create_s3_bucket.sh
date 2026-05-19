@@ -7,7 +7,7 @@
 set -euo pipefail
 
 # ----------------------------- Configuration ---------------------------------
-REGION="eu-north-1"
+REGION="us-east-1"
 # Unique bucket name using timestamp and a random suffix
 BUCKET_NAME="automation-lab-$(date +%Y%m%d%H%M%S)-$RANDOM"
 TAG_KEY="Project"

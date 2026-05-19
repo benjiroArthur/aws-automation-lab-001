@@ -7,7 +7,7 @@
 set -euo pipefail
 
 # ----------------------------- Configuration ---------------------------------
-REGION="eu-north-1"
+REGION="us-east-1"
 KEY_NAME="automation-lab-key"
 INSTANCE_TYPE="t3.micro"
 TAG_KEY="Project"
@@ -22,6 +22,16 @@ error_exit() {
     echo "[ERROR] $1" >&2
     exit 1
 }
+
+# ----------------------------- Load VPC Config -------------------------------
+# Source VPC config if available (created by create_vpc.sh)
+if [ -f "vpc_config.env" ]; then
+    source vpc_config.env
+    log "Loaded VPC config. Using VPC: $VPC_ID | Subnet: $SUBNET_ID"
+else
+    log "vpc_config.env not found. Instance will launch into default VPC/subnet."
+    SUBNET_ID=""
+fi
 
 # ----------------------------- Fetch Latest AMI ------------------------------
 # Dynamically fetch the latest Amazon Linux 2 AMI for the configured region
@@ -67,15 +77,23 @@ fi
 # ----------------------------- EC2 Instance Creation -------------------------
 log "Launching EC2 instance ..."
 
-INSTANCE_ID=$(aws ec2 run-instances \
-    --region "$REGION" \
-    --image-id "$AMI_ID" \
-    --instance-type "$INSTANCE_TYPE" \
-    --key-name "$KEY_NAME" \
-    --count 1 \
-    --tag-specifications "ResourceType=instance,Tags=[{Key=$TAG_KEY,Value=$TAG_VALUE},{Key=Name,Value=AutomationLab-EC2}]" \
-    --query 'Instances[0].InstanceId' \
-    --output text)
+# Build run-instances command — include subnet if available from vpc_config.env
+RUN_ARGS=(
+    --region "$REGION"
+    --image-id "$AMI_ID"
+    --instance-type "$INSTANCE_TYPE"
+    --key-name "$KEY_NAME"
+    --count 1
+    --tag-specifications "ResourceType=instance,Tags=[{Key=$TAG_KEY,Value=$TAG_VALUE},{Key=Name,Value=AutomationLab-EC2}]"
+    --query 'Instances[0].InstanceId'
+    --output text
+)
+
+if [ -n "$SUBNET_ID" ]; then
+    RUN_ARGS+=(--subnet-id "$SUBNET_ID")
+fi
+
+INSTANCE_ID=$(aws ec2 run-instances "${RUN_ARGS[@]}")
 
 if [ -z "$INSTANCE_ID" ]; then
     error_exit "Failed to launch EC2 instance."
